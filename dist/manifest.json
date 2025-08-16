@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Email Radar",
+  "description": "AI-powered triage that alerts you to important emails in your inbox.",
+  "version": "0.0.1",
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "action": {
+    "default_popup": "popup/index.html",
+    "default_title": "Email Radar"
+  },
+  "options_page": "options/index.html",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": ["contentScript.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": [
+    "storage",
+    "notifications",
+    "activeTab",
+    "identity"
+  ],
+  "host_permissions": [
+    "https://api.openai.com/*"
+  ],
+  "oauth2": {
+  "client_id": "926913071532-4mqveecki8og06safmuh6sbtnopq1pmm.apps.googleusercontent.com",
+  "scopes": ["https://www.googleapis.com/auth/gmail.readonly"]
+}
+}
