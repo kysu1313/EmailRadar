@@ -42,6 +42,11 @@ async function classifyBatch(emails: any[]) {
   const key = await getApiKey();
   if (!key) throw new Error("No OpenAI key");
 
+  
+const includeSnippet = await new Promise(r => chrome.storage.sync.get(
+  ["useSnippet"], v => r(!!v.useSnippet)
+));
+
   const prompt = `
 You determine if emails are personally important based on:
 - bills, job leads, security alerts, or if from close contacts
@@ -50,20 +55,23 @@ Return JSON keyed by id like:
 { "XYZ": {"important": true, "reason":"..."} }
 
 Emails:
-${emails.map(e => `${e.id}) Subject: ${e.subject}\nFrom: ${e.from}\nSnippet: ${e.snippet}\n`).join("")}
+${emails.map(e => {
+  const base = `${e.id}) Subject: ${e.subject}\nFrom: ${e.from}\n`;
+  return includeSnippet ? base + `Snippet: ${e.snippet}\n` : base;
+}).join("")}
 `;
 
   const resp = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${key}`
+      Authorization: `Bearer ${key}`,
     },
     body: JSON.stringify({
       model: "gpt-3.5-turbo",
       messages: [{ role: "user", content: prompt }],
-      temperature: 0.2
-    })
+      temperature: 0.2,
+    }),
   });
   const data = await resp.json();
   return JSON.parse(data.choices[0].message.content);
@@ -90,7 +98,7 @@ function sendNoti(e: any) {
     type: "basic",
     iconUrl: "icon128.png",
     title: `Important: ${e.subject}`,
-    message: e.reason
+    message: e.reason,
   });
 }
 
@@ -138,7 +146,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         newEmails = newEmails.map((e) => ({
           ...e,
           important: gptRes[e.id]?.important || false,
-          reason: gptRes[e.id]?.reason || ""
+          reason: gptRes[e.id]?.reason || "",
         }));
         // notify if newly found important
         for (const e of newEmails) {
@@ -162,7 +170,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse({ success: false, error: String(err) });
     });
 
-    return true; // async
+    return true;
   }
 
   // MARK READ
@@ -183,13 +191,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           16: "email-radar-icon.png",
           32: "email-radar-icon.png",
           48: "email-radar-icon.png",
-          128: "email-radar-icon.png"
+          128: "email-radar-icon.png",
         }
       : {
           16: "email-radar-icon-ni.png",
           32: "email-radar-icon-ni.png",
           48: "email-radar-icon-ni.png",
-          128: "email-radar-icon-ni.png"
+          128: "email-radar-icon-ni.png",
         };
     chrome.action.setIcon({ path: icon });
   }
@@ -203,9 +211,9 @@ async function gmailModify(id: string, mods: any) {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify(mods)
+      body: JSON.stringify(mods),
     }
   );
 }

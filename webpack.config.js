@@ -49,6 +49,7 @@ module.exports = {
         { from: "public/email-radar-icon.png", to: "." },
         { from: "public/email-radar-icon-ni.png", to: "." },
         { from: "public/email-radar-full-logo.png", to: "popup" },
+        { from: "public/email-radar-full-logo.png", to: "options" },
 
         { from: "public/popup", to: "popup" },
         { from: "public/options", to: "options" }

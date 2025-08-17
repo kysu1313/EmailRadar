@@ -110,21 +110,36 @@ export default function App() {
   return (
     <div className="w-[420px] p-4 text-sm font-sans dark:bg-gray-900 dark:text-white space-y-4">
       {/* Tabs */}
-      <div className="flex gap-2 mb-1">
+      <div className="flex gap-2 mb-1 items-center">
         {["inbox", "settings"].map((t) => (
           <button
             key={t}
             onClick={() => setTab(t as any)}
-            className={`px-3 py-1 rounded ${
+            className={`px-3 py-1 border rounded ${
               tab === t
                 ? "bg-blue-600 text-white"
                 : "bg-gray-200 dark:bg-gray-700"
             }`}
+            title={t}
           >
             {t === "inbox" ? "Inbox" : "Settings"}
           </button>
         ))}
-        <img src="email-radar-full-logo.png" className="h-6" alt="Email Radar Logo" />
+        <button
+          onClick={() => fetchEmails(settings.batch)}
+          className="px-2 py-1 border rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+          title="Refresh"
+        >
+          🔄 Refresh
+        </button>
+
+        <div className="ml-auto flex-none">
+          <img
+            src="email-radar-full-logo.png"
+            style={{ height: "100px" }}
+            alt="Email Radar Logo"
+          />
+        </div>
       </div>
 
       {tab === "inbox" && (
@@ -175,13 +190,13 @@ export default function App() {
                     <div className="mt-2 flex gap-4">
                       <button
                         onClick={() => takeAction(e.id, "MARK_READ")}
-                        className="px-2 py-1 rounded bg-green-600 text-white hover:bg-green-700"
+                        className="px-3 py-1 rounded-full bg-[#00A878]/90 text-white hover:bg-[#00A878] transition"
                       >
                         Mark read
                       </button>
                       <button
                         onClick={() => takeAction(e.id, "MARK_SPAM")}
-                        className="px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700"
+                        className="px-3 py-1 rounded-full bg-[#E63946]/90 text-white hover:bg-[#E63946] transition"
                       >
                         Spam
                       </button>
