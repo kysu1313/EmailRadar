@@ -72,7 +72,7 @@ export default function OptionsPage() {
         </button>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-4">
           Your API key is stored locally and securely in your browser. It is used to classify
-          emails for importance.
+          emails for importance using ChatGPT 3.5 turbo.
         </p>
       </div>
     </div>

@@ -1,4 +1,3 @@
-// Cached result shape
 interface CachedEmails {
   cachedAt: number; // timestamp
   emails: any[];
@@ -83,7 +82,6 @@ async function getApiKey(): Promise<string | undefined> {
   );
 }
 
-// notification tracking
 async function wasNotified(id: string) {
   return new Promise((res) =>
     chrome.storage.local.get([id], (x) => res(!!x[id]))
@@ -102,7 +100,6 @@ function sendNoti(e: any) {
   });
 }
 
-/* Caching helpers */
 function loadCache(): Promise<CachedEmails | null> {
   return new Promise((resolve) => {
     chrome.storage.local.get(["cachedEmails"], (r) => {
@@ -115,7 +112,6 @@ function saveCache(cache: CachedEmails) {
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  // LOAD + CACHE
   if (msg.type === "GET_GMAIL") {
     (async () => {
       const { count } = msg;
@@ -148,7 +144,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           important: gptRes[e.id]?.important || false,
           reason: gptRes[e.id]?.reason || "",
         }));
-        // notify if newly found important
+
         for (const e of newEmails) {
           if (e.important && !(await wasNotified(e.id))) {
             sendNoti(e);
@@ -156,7 +152,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           }
         }
         cachedEmails = [...newEmails, ...cachedEmails];
-        // truncate
+
         if (cachedEmails.length > 200) {
           cachedEmails = cachedEmails.slice(0, 200);
         }
@@ -173,7 +169,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  // MARK READ
   if (msg.type === "MARK_READ") {
     gmailModify(msg.id, { removeLabelIds: ["UNREAD"] });
     sendResponse({ ok: true });
@@ -184,7 +179,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse({ ok: true });
   }
 
-  // ICON STATE
   if (msg.type === "SET_ICON_IMPORTANCE") {
     const icon = msg.hasImportant
       ? {
