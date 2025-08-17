@@ -44,14 +44,15 @@ cd emailradar
 
 ```bash
 npm install
+npm run build
 ```
 
 ### 3. Load into Chrome
 
-#### 1. Go to chrome://extensions
-#### 2. Enable Developer mode
-#### 3. Click Load unpacked
-#### 4. Select the /dist folder
+- 1. Go to chrome://extensions
+- 2. Enable Developer mode
+- 3. Click Load unpacked
+- 4. Select the /dist folder
 
 
 ## 🔧 Settings
