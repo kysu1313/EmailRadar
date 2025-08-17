@@ -4,9 +4,10 @@
   "description": "AI-powered triage that alerts you to important emails in your inbox.",
   "version": "0.0.1",
   "icons": {
-    "16": "icon16.png",
-    "48": "icon48.png",
-    "128": "icon128.png"
+    "16": "email-radar-icon.png",
+    "32": "email-radar-icon.png",
+    "48": "email-radar-full-logo.png",
+    "128": "email-radar-full-logo.png"
   },
   "action": {
     "default_popup": "popup/index.html",
@@ -35,6 +36,7 @@
   ],
   "oauth2": {
   "client_id": "926913071532-4mqveecki8og06safmuh6sbtnopq1pmm.apps.googleusercontent.com",
-  "scopes": ["https://www.googleapis.com/auth/gmail.readonly"]
+  "scopes": ["https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.modify"]
 }
 }

@@ -1,4 +1,8 @@
-// background.ts
+// Cached result shape
+interface CachedEmails {
+  cachedAt: number; // timestamp
+  emails: any[];
+}
 
 async function getGmailAuthToken(): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -11,24 +15,22 @@ async function getGmailAuthToken(): Promise<string> {
   });
 }
 
-async function listUnreadEmails() {
+async function listUnreadEmailIds(count: number) {
   const token = await getGmailAuthToken();
-  const response = await fetch(
-    "https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread newer_than:30d&maxResults=10",
-    {
-      headers: { Authorization: `Bearer ${token}` }
-    }
+  const resp = await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread newer_than:30d&maxResults=${count}`,
+    { headers: { Authorization: `Bearer ${token}` } }
   );
-  const data = await response.json();
-  return data.messages || [];
+  const data = await resp.json();
+  return data.messages?.map((m: any) => m.id) || [];
 }
 
 async function getEmailDetail(id: string, token: string) {
-  const response = await fetch(
+  const resp = await fetch(
     `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
-  const data = await response.json();
+  const data = await resp.json();
   const headers = data.payload.headers || [];
   const subject = headers.find((h: any) => h.name === "Subject")?.value || "";
   const from = headers.find((h: any) => h.name === "From")?.value || "";
@@ -36,33 +38,22 @@ async function getEmailDetail(id: string, token: string) {
   return { id, subject, from, snippet };
 }
 
-async function getApiKey(): Promise<string | undefined> {
-  return new Promise((resolve) => {
-    chrome.storage.sync.get(["openaiKey"], (r) => resolve(r.openaiKey));
-  });
-}
-
 async function classifyBatch(emails: any[]) {
   const key = await getApiKey();
-  if (!key) throw new Error("No OpenAI key set");
+  if (!key) throw new Error("No OpenAI key");
 
   const prompt = `
-You are an assistant that determines if emails are personally important.
-Important = messages about bills, job leads, security alerts, or from close contacts.
+You determine if emails are personally important based on:
+- bills, job leads, security alerts, or if from close contacts
 
 Return JSON keyed by id like:
-{ "xyz": { "important": true, "reason": "..." } }
+{ "XYZ": {"important": true, "reason":"..."} }
 
 Emails:
-${emails
-  .map(
-    (e, i) =>
-      `${e.id}) Subject: ${e.subject}\nFrom: ${e.from}\nSnippet: ${e.snippet}\n`
-  )
-  .join("\n")}
+${emails.map(e => `${e.id}) Subject: ${e.subject}\nFrom: ${e.from}\nSnippet: ${e.snippet}\n`).join("")}
 `;
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -74,61 +65,147 @@ ${emails
       temperature: 0.2
     })
   });
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content ?? "{}";
-  return JSON.parse(content);
+  const data = await resp.json();
+  return JSON.parse(data.choices[0].message.content);
 }
 
-function sendNotification(e: any) {
+async function getApiKey(): Promise<string | undefined> {
+  return new Promise((resolve) =>
+    chrome.storage.sync.get(["openaiKey"], (r) => resolve(r.openaiKey))
+  );
+}
+
+// notification tracking
+async function wasNotified(id: string) {
+  return new Promise((res) =>
+    chrome.storage.local.get([id], (x) => res(!!x[id]))
+  );
+}
+async function markNotified(id: string) {
+  chrome.storage.local.set({ [id]: true });
+}
+
+function sendNoti(e: any) {
   chrome.notifications.create(e.id, {
     type: "basic",
     iconUrl: "icon128.png",
-    title: `Important Email: ${e.subject}`,
+    title: `Important: ${e.subject}`,
     message: e.reason
   });
 }
 
-// avoid notifying twice
-async function markNotified(id: string) {
-  return new Promise<void>((resolve) => {
-    chrome.storage.local.set({ [id]: true }, () => resolve());
+/* Caching helpers */
+function loadCache(): Promise<CachedEmails | null> {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(["cachedEmails"], (r) => {
+      resolve(r.cachedEmails || null);
+    });
   });
 }
-async function wasNotified(id: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    chrome.storage.local.get([id], (r) => resolve(!!r[id]));
-  });
+function saveCache(cache: CachedEmails) {
+  chrome.storage.local.set({ cachedEmails: cache });
 }
 
-// Main handler
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  // LOAD + CACHE
   if (msg.type === "GET_GMAIL") {
     (async () => {
-      const messages = await listUnreadEmails();
-      const token = await getGmailAuthToken();
-      const details = [];
-      for (const m of messages) {
-        details.push(await getEmailDetail(m.id, token));
+      const { count } = msg;
+
+      let cache = await loadCache();
+      const now = Date.now();
+      const maxAge = 6 * 60 * 60 * 1000; // 6h
+
+      let cachedEmails: any[] = [];
+
+      if (cache && now - cache.cachedAt < maxAge) {
+        cachedEmails = cache.emails;
       }
 
-      const results = await classifyBatch(details);
+      const existingIds = new Set(cachedEmails.map((e) => e.id));
 
-      // Attach classification
-      for (const email of details) {
-        const r = results[email.id];
-        email.important = r?.important || false;
-        email.reason = r?.reason || "";
-        if (email.important && !(await wasNotified(email.id))) {
-          sendNotification(email);
-          await markNotified(email.id);
+      const unreadIds = await listUnreadEmailIds(count);
+      const newIds = unreadIds.filter((id) => !existingIds.has(id));
+
+      let newEmails: any[] = [];
+
+      if (newIds.length) {
+        const token = await getGmailAuthToken();
+        for (const id of newIds) {
+          newEmails.push(await getEmailDetail(id, token));
         }
+        const gptRes = await classifyBatch(newEmails);
+        newEmails = newEmails.map((e) => ({
+          ...e,
+          important: gptRes[e.id]?.important || false,
+          reason: gptRes[e.id]?.reason || ""
+        }));
+        // notify if newly found important
+        for (const e of newEmails) {
+          if (e.important && !(await wasNotified(e.id))) {
+            sendNoti(e);
+            await markNotified(e.id);
+          }
+        }
+        cachedEmails = [...newEmails, ...cachedEmails];
+        // truncate
+        if (cachedEmails.length > 200) {
+          cachedEmails = cachedEmails.slice(0, 200);
+        }
+        cache = { cachedAt: now, emails: cachedEmails };
+        saveCache(cache);
       }
 
-      sendResponse({ success: true, emails: details });
+      sendResponse({ success: true, emails: cachedEmails });
     })().catch((err) => {
       console.error(err);
       sendResponse({ success: false, error: String(err) });
     });
+
     return true; // async
   }
+
+  // MARK READ
+  if (msg.type === "MARK_READ") {
+    gmailModify(msg.id, { removeLabelIds: ["UNREAD"] });
+    sendResponse({ ok: true });
+  }
+
+  if (msg.type === "MARK_SPAM") {
+    gmailModify(msg.id, { addLabelIds: ["SPAM"], removeLabelIds: ["INBOX"] });
+    sendResponse({ ok: true });
+  }
+
+  // ICON STATE
+  if (msg.type === "SET_ICON_IMPORTANCE") {
+    const icon = msg.hasImportant
+      ? {
+          16: "email-radar-icon.png",
+          32: "email-radar-icon.png",
+          48: "email-radar-icon.png",
+          128: "email-radar-icon.png"
+        }
+      : {
+          16: "email-radar-icon-ni.png",
+          32: "email-radar-icon-ni.png",
+          48: "email-radar-icon-ni.png",
+          128: "email-radar-icon-ni.png"
+        };
+    chrome.action.setIcon({ path: icon });
+  }
 });
+
+async function gmailModify(id: string, mods: any) {
+  const token = await getGmailAuthToken();
+  await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}/modify`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(mods)
+    }
+  );
+}

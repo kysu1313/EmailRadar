@@ -3,6 +3,7 @@ const fs = require("fs");
 const CopyPlugin = require("copy-webpack-plugin");
 
 module.exports = {
+    watch: true,
   entry: {
     background: "./src/background.ts",
     contentScript: "./src/contentScript.ts",
@@ -45,6 +46,9 @@ module.exports = {
         { from: "public/icon16.png", to: "." },
         { from: "public/icon48.png", to: "." },
         { from: "public/icon128.png", to: "." },
+        { from: "public/email-radar-icon.png", to: "." },
+        { from: "public/email-radar-icon-ni.png", to: "." },
+        { from: "public/email-radar-full-logo.png", to: "popup" },
 
         { from: "public/popup", to: "popup" },
         { from: "public/options", to: "options" }
